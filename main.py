@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, HttpUrl
 import httpx
 import librosa
@@ -12,7 +13,10 @@ import os
 app = FastAPI(title="AI Voice Detection API", version="1.0.0")
 
 # API Key Configuration
-API_KEY = os.getenv("API_KEY", "your-secret-api-key-here")
+API_KEY = os.getenv("API_KEY", "sk_live_abc123xyz789_secure_key_2024")
+
+# Security scheme
+security = HTTPBearer()
 
 # Load wav2vec2 model for feature extraction
 processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
@@ -28,18 +32,10 @@ class VoiceResponse(BaseModel):
     confidence: float
     explanation: str
 
-def verify_api_key(authorization: Optional[str] = Header(None)):
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authorization header missing")
-    
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization format. Use 'Bearer <API_KEY>'")
-    
-    token = authorization.replace("Bearer ", "")
-    if token != API_KEY:
+def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if credentials.credentials != API_KEY:
         raise HTTPException(status_code=403, detail="Invalid API key")
-    
-    return token
+    return credentials.credentials
 
 async def download_audio(url: str) -> bytes:
     """Download audio file from URL"""
@@ -154,6 +150,33 @@ def detect_ai_voice(features: dict) -> tuple[str, float, str]:
     explanation = f"Analysis based on: {', '.join(reasons)}. Metrics: pitch_var={pitch_variance:.2f}, mfcc_std={mfcc_std:.2f}, spectral_rolloff_std={spectral_rolloff_std:.2f}"
     
     return classification, round(confidence, 4), explanation
+
+@app.post("/test-voice")
+async def test_voice_no_auth(request: VoiceRequest):
+    """
+    Test endpoint without authorization - for easy testing
+    """
+    try:
+        # Download audio
+        audio_bytes = await download_audio(str(request.audio_url))
+        
+        # Extract features
+        features = extract_audio_features(audio_bytes)
+        
+        # Detect AI voice
+        classification, confidence, explanation = detect_ai_voice(features)
+        
+        return {
+            "classification": classification,
+            "confidence": confidence,
+            "explanation": explanation,
+            "status": "success"
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "status": "failed"
+        }
 
 @app.post("/detect-voice", response_model=VoiceResponse)
 async def detect_voice(
