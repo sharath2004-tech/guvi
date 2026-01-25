@@ -1,0 +1,22 @@
+{
+  "functions": {
+    "main.py": {
+      "runtime": "python3.11"
+    }
+  },
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "main.py"
+    }
+  ],
+  "env": {
+    "API_KEY": "sk_live_abc123xyz789_secure_key_2024"
+  }
+}
