@@ -1,8 +1,0 @@
-fastapi
-uvicorn[standard]
-httpx
-numpy
-torch --index-url https://download.pytorch.org/whl/cpu
-transformers
-pydantic>=2.0.0
-requests
