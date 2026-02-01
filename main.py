@@ -147,65 +147,116 @@ def extract_audio_features(audio_bytes: bytes):
 
 def detect_ai_voice(features: dict) -> tuple[str, float, str]:
     """
-    Detect if voice is AI-generated based on audio features
+    Detect if voice is AI-generated based on audio features (Enhanced Algorithm)
     
     AI-generated voices typically show:
     - Lower pitch variance (more monotone)
     - Smoother spectral characteristics
     - Less natural zero-crossing patterns
     - More uniform MFCC patterns
+    - Consistent energy distribution
     """
     
     # Calculate detection metrics
     mfcc_std = np.std(features["mfcc"])
+    mfcc_mean = np.mean(features["mfcc"])
     spectral_centroid_mean = np.mean(features["spectral_centroid"])
+    spectral_centroid_std = np.std(features["spectral_centroid"])
     spectral_rolloff_std = np.std(features["spectral_rolloff"])
+    spectral_rolloff_mean = np.mean(features["spectral_rolloff"])
     zcr_variance = np.var(features["zero_crossing_rate"])
+    zcr_mean = np.mean(features["zero_crossing_rate"])
     pitch_variance = features["pitch_variance"]
     
-    # Scoring system (heuristic-based for open-source approach)
+    # Enhanced scoring system with weighted features
     ai_score = 0.0
+    confidence_factors = []
     reasons = []
     
-    # Check pitch variance (AI voices tend to have lower variance)
-    if pitch_variance < 1000:
-        ai_score += 0.25
-        reasons.append("low pitch variance indicating synthetic monotone")
+    # 1. Pitch variance analysis (30% weight) - Most reliable indicator
+    if pitch_variance < 500:
+        ai_score += 0.30
+        confidence_factors.append(0.95)
+        reasons.append("very low pitch variance (highly synthetic)")
+    elif pitch_variance < 2000:
+        ai_score += 0.20
+        confidence_factors.append(0.70)
+        reasons.append("low pitch variance (possibly synthetic)")
+    elif pitch_variance > 100000:
+        confidence_factors.append(0.90)
+        reasons.append("high natural pitch variation (human speech)")
     else:
-        reasons.append("natural pitch variation detected")
+        confidence_factors.append(0.75)
+        reasons.append("moderate pitch variation detected")
     
-    # Check MFCC uniformity (AI voices have more uniform patterns)
-    if mfcc_std < 15:
+    # 2. MFCC pattern analysis (25% weight)
+    if mfcc_std < 10:
         ai_score += 0.25
-        reasons.append("uniform MFCC patterns typical of synthesis")
+        confidence_factors.append(0.85)
+        reasons.append("highly uniform MFCC patterns (AI synthesis)")
+    elif mfcc_std < 30:
+        ai_score += 0.15
+        confidence_factors.append(0.70)
+        reasons.append("somewhat uniform MFCC patterns")
     else:
-        reasons.append("varied MFCC patterns suggesting human speech")
+        confidence_factors.append(0.85)
+        reasons.append("diverse MFCC patterns (natural speech)")
     
-    # Check spectral characteristics
-    if spectral_rolloff_std < 500:
-        ai_score += 0.2
-        reasons.append("smooth spectral rolloff lacking natural artifacts")
+    # 3. Spectral rolloff analysis (20% weight)
+    if spectral_rolloff_std < 300:
+        ai_score += 0.20
+        confidence_factors.append(0.80)
+        reasons.append("smooth spectral rolloff (lacks natural artifacts)")
+    elif spectral_rolloff_std < 800:
+        ai_score += 0.10
+        confidence_factors.append(0.65)
+        reasons.append("moderately smooth spectral characteristics")
     else:
+        confidence_factors.append(0.80)
         reasons.append("natural spectral variations present")
     
-    # Check zero-crossing rate variance
-    if zcr_variance < 0.001:
+    # 4. Zero-crossing rate variance (15% weight)
+    if zcr_variance < 0.0005:
         ai_score += 0.15
-        reasons.append("consistent zero-crossing rate typical of AI")
+        confidence_factors.append(0.75)
+        reasons.append("highly consistent zero-crossing rate (AI typical)")
+    elif zcr_variance < 0.002:
+        ai_score += 0.08
+        confidence_factors.append(0.60)
+        reasons.append("somewhat consistent zero-crossing pattern")
     else:
+        confidence_factors.append(0.75)
         reasons.append("natural zero-crossing variations")
     
-    # Check spectral centroid (AI voices often have specific frequency focus)
-    if 1000 < spectral_centroid_mean < 3000:
-        ai_score += 0.15
-        reasons.append("spectral centroid in typical AI synthesis range")
+    # 5. Spectral centroid analysis (10% weight)
+    if spectral_centroid_std < 200:
+        ai_score += 0.10
+        confidence_factors.append(0.70)
+        reasons.append("narrow spectral focus (AI synthesis characteristic)")
+    elif 1500 < spectral_centroid_mean < 2500:
+        ai_score += 0.05
+        confidence_factors.append(0.60)
+        reasons.append("spectral centroid in typical AI range")
     else:
+        confidence_factors.append(0.65)
         reasons.append("spectral centroid shows natural distribution")
     
-    # Determine classification
-    confidence = ai_score if ai_score > 0.5 else (1 - ai_score)
-    classification = "AI-generated" if ai_score > 0.5 else "Human-generated"
-    explanation = f"Analysis based on: {', '.join(reasons)}. Metrics: pitch_var={pitch_variance:.2f}, mfcc_std={mfcc_std:.2f}, spectral_rolloff_std={spectral_rolloff_std:.2f}"
+    # Calculate final confidence using average of individual confidence factors
+    avg_confidence = np.mean(confidence_factors) if confidence_factors else 0.5
+    
+    # Determine classification with enhanced confidence calculation
+    if ai_score > 0.6:
+        classification = "AI-generated"
+        confidence = min(0.99, avg_confidence * (ai_score / 0.6))  # Scale confidence
+    elif ai_score < 0.3:
+        classification = "Human-generated"
+        confidence = min(0.99, avg_confidence * ((1 - ai_score) / 0.7))
+    else:
+        # Ambiguous zone (0.3-0.6)
+        classification = "AI-generated" if ai_score >= 0.45 else "Human-generated"
+        confidence = max(0.50, avg_confidence * 0.7)  # Lower confidence for ambiguous cases
+    
+    explanation = f"Analysis: {', '.join(reasons[:3])}. Key metrics: pitch_var={pitch_variance:.1f}, mfcc_std={mfcc_std:.2f}, spectral_rolloff_std={spectral_rolloff_std:.2f}, zcr_var={zcr_variance:.6f}"
     
     return classification, round(confidence, 4), explanation
 
