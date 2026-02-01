@@ -5,8 +5,6 @@ from pydantic import BaseModel, HttpUrl
 import httpx
 import librosa
 import numpy as np
-import torch
-from transformers import Wav2Vec2Processor, Wav2Vec2Model
 import io
 from typing import Optional
 import os
@@ -63,11 +61,17 @@ def get_model():
     """Lazy load model only when needed"""
     global processor, model
     if not USE_LIGHTWEIGHT_MODE and model is None:
-        logger.info("Loading Wav2Vec2 model...")
-        processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
-        model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base")
-        model.eval()
-        logger.info("Model loaded successfully")
+        try:
+            logger.info("Loading Wav2Vec2 model...")
+            # Import here to avoid import errors when torch is not installed
+            from transformers import Wav2Vec2Processor, Wav2Vec2Model
+            processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
+            model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base")
+            model.eval()
+            logger.info("Model loaded successfully")
+        except ImportError:
+            logger.warning("torch/transformers not available - running in lightweight mode")
+            return None, None
     return processor, model
 
 class VoiceRequest(BaseModel):
@@ -119,9 +123,14 @@ def extract_audio_features(audio_bytes: bytes):
         if not USE_LIGHTWEIGHT_MODE:
             proc, mdl = get_model()
             if proc is not None and mdl is not None:
-                inputs = proc(audio_data, sampling_rate=sr, return_tensors="pt", padding=True)
-                with torch.no_grad():
-                    embeddings = mdl(**inputs).last_hidden_state
+                try:
+                    import torch
+                    inputs = proc(audio_data, sampling_rate=sr, return_tensors="pt", padding=True)
+                    with torch.no_grad():
+                        embeddings = mdl(**inputs).last_hidden_state
+                except ImportError:
+                    logger.warning("torch not available - skipping embeddings")
+                    embeddings = None
         
         return {
             "audio_data": audio_data,
