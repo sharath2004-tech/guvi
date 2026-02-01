@@ -1,7 +1,7 @@
 services:
   - type: web
     name: ai-voice-detection-api
-    env: python
+    runtime: python
     plan: free  # Free tier: 512MB RAM
     buildCommand: pip install --no-cache-dir -r requirements-light.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
@@ -11,7 +11,7 @@ services:
       - key: LIGHTWEIGHT_MODE
         value: "true"
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: "3.11"
       - key: PYTHONUNBUFFERED
-        value: 1
+        value: "1"
     healthCheckPath: /health

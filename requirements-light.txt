@@ -1,13 +1,14 @@
 # Lightweight requirements for memory-constrained environments (512MB)
 # Use this for Render.com free tier
+# Compatible with Python 3.9-3.12
 
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-httpx==0.26.0
-librosa==0.10.1
-numpy==1.24.3
-pydantic==2.5.3
-soundfile==0.12.1
+fastapi>=0.109.0,<0.120.0
+uvicorn[standard]>=0.27.0,<0.32.0
+httpx>=0.26.0,<0.28.0
+librosa>=0.10.1,<0.11.0
+numpy>=1.24.0,<2.0.0
+pydantic>=2.5.0,<3.0.0
+soundfile>=0.12.0,<0.13.0
 
 # Note: Removed torch and transformers to save ~400MB memory
 # The app works in LIGHTWEIGHT_MODE without these dependencies
