@@ -35,6 +35,9 @@ app.add_middleware(
 # API Key Configuration
 API_KEY = os.getenv("API_KEY", "sk_live_abc123xyz789_secure_key_2024")
 
+# Use lightweight model mode (saves 300MB+ memory)
+USE_LIGHTWEIGHT_MODE = os.getenv("LIGHTWEIGHT_MODE", "true").lower() == "true"
+
 # Security scheme
 security = HTTPBearer()
 
@@ -52,10 +55,20 @@ async def log_requests(request: Request, call_next):
     
     return response
 
-# Load wav2vec2 model for feature extraction
-processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
-model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base")
-model.eval()
+# Lazy loading for models (only load if needed and not in lightweight mode)
+processor = None
+model = None
+
+def get_model():
+    """Lazy load model only when needed"""
+    global processor, model
+    if not USE_LIGHTWEIGHT_MODE and model is None:
+        logger.info("Loading Wav2Vec2 model...")
+        processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
+        model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base")
+        model.eval()
+        logger.info("Model loaded successfully")
+    return processor, model
 
 class VoiceRequest(BaseModel):
     audio_url: HttpUrl
@@ -86,8 +99,8 @@ async def download_audio(url: str) -> bytes:
 def extract_audio_features(audio_bytes: bytes):
     """Convert MP3 to waveform and extract features"""
     try:
-        # Load audio using librosa
-        audio_data, sr = librosa.load(io.BytesIO(audio_bytes), sr=16000, mono=True)
+        # Load audio using librosa with lower memory settings
+        audio_data, sr = librosa.load(io.BytesIO(audio_bytes), sr=16000, mono=True, duration=30.0)
         
         # Extract MFCC features
         mfcc = librosa.feature.mfcc(y=audio_data, sr=sr, n_mfcc=13)
@@ -101,10 +114,14 @@ def extract_audio_features(audio_bytes: bytes):
         pitches, magnitudes = librosa.piptrack(y=audio_data, sr=sr)
         pitch_variance = np.var(pitches[pitches > 0]) if np.any(pitches > 0) else 0
         
-        # Wav2Vec2 embeddings
-        inputs = processor(audio_data, sampling_rate=sr, return_tensors="pt", padding=True)
-        with torch.no_grad():
-            embeddings = model(**inputs).last_hidden_state
+        # Only use Wav2Vec2 if not in lightweight mode
+        embeddings = None
+        if not USE_LIGHTWEIGHT_MODE:
+            proc, mdl = get_model()
+            if proc is not None and mdl is not None:
+                inputs = proc(audio_data, sampling_rate=sr, return_tensors="pt", padding=True)
+                with torch.no_grad():
+                    embeddings = mdl(**inputs).last_hidden_state
         
         return {
             "audio_data": audio_data,
@@ -288,5 +305,7 @@ async def health():
     return {
         "status": "healthy",
         "timestamp": time.time(),
-        "model_loaded": model is not None
+        "lightweight_mode": USE_LIGHTWEIGHT_MODE,
+        "model_loaded": model is not None,
+        "memory_optimized": True
     }
