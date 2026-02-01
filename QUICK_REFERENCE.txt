@@ -1,0 +1,117 @@
+╔════════════════════════════════════════════════════════════════╗
+║           AI VOICE DETECTION API - QUICK REFERENCE             ║
+╚════════════════════════════════════════════════════════════════╝
+
+📌 LOCAL TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Start server
+.\start.ps1
+
+# OR manually
+uvicorn main:app --reload
+
+# Run tests
+python test_api.py
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌐 DEPLOYMENT (Choose ONE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ RENDER.COM (Recommended - FREE)
+1. Go to: https://render.com
+2. New → Web Service
+3. Connect GitHub repo
+4. Build: pip install -r requirements.txt
+5. Start: uvicorn main:app --host 0.0.0.0 --port $PORT
+6. Add env var: API_KEY=sk_live_abc123xyz789_secure_key_2024
+7. Deploy → Get URL
+
+✅ RAILWAY.APP (Fastest)
+1. Go to: https://railway.app
+2. New Project → Deploy from GitHub
+3. Add env: API_KEY=sk_live_abc123xyz789_secure_key_2024
+4. Deploy → Get URL
+
+✅ FLY.IO (Advanced)
+fly launch
+fly secrets set API_KEY=sk_live_abc123xyz789_secure_key_2024
+fly deploy
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔑 API KEY (Give to evaluators)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+sk_live_abc123xyz789_secure_key_2024
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📡 ENDPOINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔵 Main Endpoint (WITH AUTH)
+POST /detect-voice
+Headers: Authorization: Bearer sk_live_abc123xyz789_secure_key_2024
+
+🔵 Test Endpoint (NO AUTH)
+POST /test-voice
+
+🔵 Health Check
+GET /health
+
+🔵 Documentation
+GET /docs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📨 SAMPLE REQUEST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+curl -X POST "https://YOUR-URL.com/detect-voice" \
+  -H "Authorization: Bearer sk_live_abc123xyz789_secure_key_2024" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "audio_url": "https://example.com/audio.mp3",
+    "message": "test"
+  }'
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📤 RESPONSE FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{
+  "classification": "AI-generated",
+  "confidence": 0.7854,
+  "explanation": "Analysis based on: ..."
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ SUBMISSION CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+☐ API deployed publicly
+☐ URL is accessible
+☐ /health returns 200
+☐ API key works
+☐ Response format correct
+☐ Tested from external network
+☐ Documentation at /docs works
+☐ Response time < 30s
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 FILES CREATED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ DEPLOYMENT.md          - Full deployment guide
+✅ SUBMISSION_CHECKLIST.md - Pre-submission checklist
+✅ test_api.py             - Automated testing script
+✅ start.ps1               - Quick start script
+✅ render.yaml             - Render.com config
+✅ railway.json            - Railway.app config
+✅ vercel.json             - Vercel config
+✅ .env.example            - Environment variables template
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 NEXT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Test locally: .\start.ps1
+2. Run tests: python test_api.py
+3. Deploy to Render/Railway
+4. Test deployed URL
+5. Submit URL + API key
+6. Done! 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

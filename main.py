@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, HttpUrl
 import httpx
@@ -9,14 +10,47 @@ from transformers import Wav2Vec2Processor, Wav2Vec2Model
 import io
 from typing import Optional
 import os
+import logging
+import time
 
-app = FastAPI(title="AI Voice Detection API", version="1.0.0")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="AI Voice Detection API",
+    version="1.0.0",
+    description="API for detecting AI-generated vs human-generated voice samples"
+)
+
+# Add CORS middleware for public access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # API Key Configuration
 API_KEY = os.getenv("API_KEY", "sk_live_abc123xyz789_secure_key_2024")
 
 # Security scheme
 security = HTTPBearer()
+
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    logger.info(f"Request: {request.method} {request.url.path}")
+    
+    response = await call_next(request)
+    
+    process_time = time.time() - start_time
+    logger.info(f"Completed in {process_time:.2f}s with status {response.status_code}")
+    response.headers["X-Process-Time"] = str(process_time)
+    
+    return response
 
 # Load wav2vec2 model for feature extraction
 processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
@@ -40,13 +74,11 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
 async def download_audio(url: str) -> bytes:
     """Download audio file from URL"""
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await client.get(url)
             response.raise_for_status()
             
-            if not response.headers.get("content-type", "").startswith("audio"):
-                raise HTTPException(status_code=400, detail="URL does not point to an audio file")
-            
+            # Skip content-type check for Google Drive files
             return response.content
     except httpx.HTTPError as e:
         raise HTTPException(status_code=400, detail=f"Failed to download audio: {str(e)}")
@@ -189,33 +221,72 @@ async def detect_voice(
     Requires:
     - Authorization header: Bearer <API_KEY>
     - JSON body with audio_url and message
+    
+    Returns:
+    - classification: "AI-generated" or "Human-generated"
+    - confidence: float between 0 and 1
+    - explanation: detailed analysis
     """
-    
-    # Download audio
-    audio_bytes = await download_audio(str(request.audio_url))
-    
-    # Extract features
-    features = extract_audio_features(audio_bytes)
-    
-    # Detect AI voice
-    classification, confidence, explanation = detect_ai_voice(features)
-    
-    return VoiceResponse(
-        classification=classification,
-        confidence=confidence,
-        explanation=explanation
-    )
+    try:
+        logger.info(f"Processing request for audio: {request.audio_url}")
+        
+        # Download audio
+        audio_bytes = await download_audio(str(request.audio_url))
+        logger.info(f"Downloaded {len(audio_bytes)} bytes")
+        
+        # Extract features
+        features = extract_audio_features(audio_bytes)
+        logger.info("Features extracted successfully")
+        
+        # Detect AI voice
+        classification, confidence, explanation = detect_ai_voice(features)
+        logger.info(f"Classification: {classification} (confidence: {confidence})")
+        
+        return VoiceResponse(
+            classification=classification,
+            confidence=confidence,
+            explanation=explanation
+        )
+    except HTTPException as he:
+        logger.error(f"HTTP error: {he.detail}")
+        raise he
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/")
 async def root():
     return {
         "service": "AI Voice Detection API",
         "version": "1.0.0",
-        "endpoint": "/detect-voice",
-        "method": "POST",
-        "auth": "Bearer token required"
+        "status": "online",
+        "endpoints": {
+            "primary": {
+                "path": "/detect-voice",
+                "method": "POST",
+                "auth": "Required - Bearer token in Authorization header",
+                "description": "Detect if voice is AI-generated or human"
+            },
+            "test": {
+                "path": "/test-voice",
+                "method": "POST",
+                "auth": "Not required",
+                "description": "Test endpoint without authentication"
+            },
+            "health": {
+                "path": "/health",
+                "method": "GET",
+                "description": "Health check endpoint"
+            }
+        },
+        "documentation": "/docs",
+        "api_key_format": "Authorization: Bearer <YOUR_API_KEY>"
     }
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "timestamp": time.time(),
+        "model_loaded": model is not None
+    }
